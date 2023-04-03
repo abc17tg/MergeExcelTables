@@ -67,10 +67,10 @@ namespace MergeExcelsTables
                             delimiter = delimiterForm.Delimiter;
                             workbook = WTC.CreateExcelWorkbookFromTextFileQueryTable(excelApp, filePath, delimiter);
                         }
-                        else if (firstFile)
+                        else// if (firstFile)
                             workbook = WTC.CreateExcelWorkbookFromTextFileQueryTable(excelApp, filePath);
-                        else
-                            workbook = WTC.CreateExcelWorkbookFromTextFile(excelApp, filePath, delimiter);
+                        /*else
+                            workbook = WTC.CreateExcelWorkbookFromTextFile(excelApp, filePath, delimiter);*/
                     }
                     else if (Utils.ExcelExt.Contains(fileExt))
                         workbook = excelApp.Workbooks.Open(filePath);
