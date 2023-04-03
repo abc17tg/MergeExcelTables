@@ -1,44 +1,49 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Windows.Forms;
-using Microsoft.Office.Interop.Excel;
+using Excel = Microsoft.Office.Interop.Excel;
 using Application = Microsoft.Office.Interop.Excel.Application;
 using Range = Microsoft.Office.Interop.Excel.Range;
+using System.Data;
+using WTC = MergeExcelsTables.WorksheetFromTxtCreator;
+using System.Threading.Tasks;
 
 namespace MergeExcelsTables
 {
     internal class Program
     {
+        private static bool m_showPrompts = true;
+
         [STAThread]
         static int Main(string[] args)
         {
             string[] filePaths;
+            if (args.Length > 0 && (args.Last() == "false" || args.Last() == "true"))
+            {
+                if (args.Last() == "false" || args.Last() == "true")
+                {
+                    m_showPrompts = bool.TryParse(args.Last(), out bool result);
+                    if (!result)
+                        m_showPrompts = true;
+                }
+            }
 
-            if (args.Length < 2)
+            filePaths = args.Where(p => File.Exists(p)).ToArray();
+
+            if (filePaths.Length < 2)
             {
                 // Launch the file picker dialog to allow the user to select files
-                filePaths = LaunchFilePicker();
+                filePaths = Utils.LaunchFilePicker();
                 if (filePaths == null)
                 {
                     Console.WriteLine("Error: No files selected.");
                     return -1;
                 }
             }
-            else if (!args.All(path => File.Exists(path)))
-            {
-                return -1;
-            }
-            else
-            {
-                filePaths = args;
-            }
 
-            Application excelApp = new Application { Visible = false };
-            Workbook newWorkbook = excelApp.Workbooks.Add();
+            Application excelApp = new Application { Visible = false, CutCopyMode = 0, DisplayAlerts = false };
+            Excel.Workbook newWorkbook = excelApp.Workbooks.Add();
 
             try
             {
@@ -46,85 +51,140 @@ namespace MergeExcelsTables
                 int currentRow = 2;
                 foreach (string filePath in filePaths)
                 {
+                    Console.WriteLine($"Processing: {filePath}");
                     string fileExt = Path.GetExtension(filePath).ToLower();
-                    Workbook workbook;
+                    Excel.Workbook workbook;
 
-                    if (fileExt == ".xlsx" || fileExt == ".xlsb" || fileExt == "xlsm" || fileExt == "xls")
+                    if (Utils.TextExt.Contains(fileExt))
                     {
+                        string delimiter = "\t";
+
+                        if (firstFile && m_showPrompts)
+                        {
+                            // Prompt the user for the delimiter using the DelimiterForm
+                            var delimiterForm = new DelimiterForm();
+                            DialogResult result = delimiterForm.ShowDialog();
+                            delimiter = delimiterForm.Delimiter;
+                            workbook = WTC.CreateExcelWorkbookFromTextFileQueryTable(excelApp, filePath, delimiter);
+                        }
+                        else if (firstFile)
+                            workbook = WTC.CreateExcelWorkbookFromTextFileQueryTable(excelApp, filePath);
+                        else
+                            workbook = WTC.CreateExcelWorkbookFromTextFile(excelApp, filePath, delimiter);
+                    }
+                    else if (Utils.ExcelExt.Contains(fileExt))
                         workbook = excelApp.Workbooks.Open(filePath);
-                    }
-                    else if (fileExt == ".txt")
-                    {
-                        workbook = CreateExcelWorkbookFromTextFile2(excelApp, filePath);
-                    }
                     else
-                    {
-                        excelApp.Workbooks.Close();
-                        return -1;
-                    }
+                        throw new Exception();
 
                     if (workbook == null)
-                    {
-                        excelApp.Workbooks.Close();
-                        return -1;
-                    }
+                        throw new Exception();
 
                     // Check if the first row is the same and if there are any excess columns
-                    Worksheet worksheet = workbook.Worksheets[1];
-                    Range usedRange = worksheet.UsedRange;
+                    Range usedRange = workbook.Worksheets[1].UsedRange;
                     Range headerRow = usedRange.Rows[1];
                     int lastColumnNumber = (int)excelApp.WorksheetFunction.CountA(headerRow.Rows[1]);
-                    headerRow = usedRange.Range["A1",usedRange.Cells[1,lastColumnNumber]];
+                    headerRow = usedRange.Range["A1", usedRange.Cells[1, lastColumnNumber]];
 
                     if (firstFile)
-                    {
                         headerRow.Copy(newWorkbook.Worksheets[1].Rows[1]);
-                        firstFile = false;
-                    }
+
                     else if (!RowsEqual(headerRow, newWorkbook.Worksheets[1].Rows[1]))
-                    {
                         throw new Exception();
-                    }
 
                     if (HasExcessColumns(usedRange, lastColumnNumber))
-                    {
                         throw new Exception();
+
+                    // Copy the used range below the first row to the new workbook
+                    Excel.Range newRange = usedRange.Offset[1, 0].Resize[usedRange.Rows.Count - 1];
+                    if (!firstFile && currentRow > 2)
+                    {
+                        Range firstRow = newWorkbook.Worksheets[1].UsedRange.Rows[3];
+                        for (int i = 1; i <= firstRow.Cells.Count; i++)
+                        {
+                            newWorkbook.Worksheets[1].Columns[i].NumberFormat = firstRow.Cells[i].NumberFormat;
+                        }
                     }
 
-                    /*// Copy the used range below the first row to the new workbook
-                    usedRange.Offset[1, 0].Resize[usedRange.Rows.Count - 1].Copy(newWorkbook.Worksheets[1].Cells[currentRow, 1]);
-                    currentRow += usedRange.Rows.Count - 1;*/
-                    usedRange.Offset[1, 0].Resize[usedRange.Rows.Count - 1].Copy();
-                    newWorkbook.Worksheets[1].Cells[currentRow, 1].PasteSpecial(XlPasteType.xlPasteFormulasAndNumberFormats);
-                    currentRow += usedRange.Rows.Count - 1;
+                    newRange.Copy();
+                    if (firstFile)
+                    {
+                        newWorkbook.Worksheets[1].Cells[currentRow, 1].PasteSpecial(Excel.XlPasteType.xlPasteFormulasAndNumberFormats);
+                        firstFile = false;
+                    }
+                    else
+                        newWorkbook.Worksheets[1].Cells[currentRow, 1].PasteSpecial(Excel.XlPasteType.xlPasteFormulas);
 
-                    workbook.Close(false);
+                    currentRow += usedRange.Rows.Count - 1;
+                    
+                    Console.SetCursorPosition(0, Console.CursorTop - 1);
+                    Console.WriteLine($"Processed: {filePath}");
+
+                    Task.Factory.StartNew(() => { workbook.Close(false); });
                 }
-                Worksheet finalWorksheet = newWorkbook.Worksheets[1];
-                Range finalRange = finalWorksheet.UsedRange;
+
+                Range finalRange = newWorkbook.Worksheets[1].UsedRange;
                 // Format the range as a table with headers
-                ListObject table = finalWorksheet.ListObjects.AddEx(XlListObjectSourceType.xlSrcRange,
-                    finalRange, Type.Missing, XlYesNoGuess.xlYes, Type.Missing);
+                Excel.ListObject table = newWorkbook.Worksheets[1].ListObjects.Add(Excel.XlListObjectSourceType.xlSrcRange,
+                    finalRange, Type.Missing, Excel.XlYesNoGuess.xlYes, Type.Missing);
                 table.Name = "MyTable";
                 table.TableStyle = "TableStyleLight1";
 
-                string newFilePath = PromptForSaveLocation();
-                newWorkbook.Application.DisplayAlerts = false;
-                newWorkbook.SaveAs(newFilePath, XlFileFormat.xlWorkbookDefault);
-                newWorkbook.Application.DisplayAlerts = true;
-                newWorkbook.Close();
+                SaveAs(newWorkbook);
                 excelApp.Quit();
             }
             catch (Exception ex)
             {
-                Console.WriteLine("\n\n"+ex.ToString());
-                newWorkbook.Close(false);
+                Console.WriteLine("\n\n" + ex.ToString());
                 excelApp.Quit();
                 return -1;
             }
 
             return 0;
         }
+
+        private static bool SaveAs(Excel.Workbook workbook)
+        {
+            try
+            {
+                string newFilePath = Utils.PromptForSaveLocation();
+                if (!string.IsNullOrEmpty(newFilePath))
+                {
+                    Excel.XlFileFormat fileFormat;
+                    string fileExtension = Path.GetExtension(newFilePath);
+
+                    switch (fileExtension)
+                    {
+                        case ".xlsx":
+                            fileFormat = Excel.XlFileFormat.xlOpenXMLWorkbook;
+                            break;
+                        case ".xlsm":
+                            fileFormat = Excel.XlFileFormat.xlOpenXMLWorkbookMacroEnabled;
+                            break;
+                        case ".xls":
+                            fileFormat = Excel.XlFileFormat.xlExcel8;
+                            break;
+                        case ".xlsb":
+                            fileFormat = Excel.XlFileFormat.xlExcel12;
+                            break;
+                        default:
+                            fileFormat = Excel.XlFileFormat.xlWorkbookDefault;
+                            break;
+                    }
+
+                    workbook.SaveAs(newFilePath, fileFormat, ReadOnlyRecommended: false);
+                    return true;
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("\n\n" + ex.ToString());
+                return false;
+            }
+
+        }
+
 
         static bool RowsEqual(Range row1, Range row2)
         {
@@ -153,139 +213,25 @@ namespace MergeExcelsTables
             return false;
         }
 
-        private static Workbook CreateExcelWorkbookFromTextFile(Application excel, string filePath)
-        {
-            // Create a new workbook object
-            Workbook workbook = excel.Workbooks.Add();
-
-            // Add a new worksheet to the workbook object
-            Worksheet worksheet = workbook.Worksheets.Add();
-
-            // Create a connection string to the text file using Power Query
-            string connectionString = $"TEXT;{filePath}";
-
-            try
-            {
-                QueryTable queryTable = worksheet.QueryTables.Add(Connection: connectionString, Destination: worksheet.Cells[1, 1]);
-                queryTable.TextFileParseType = XlTextParsingType.xlDelimited;
-                queryTable.HasAutoFormat = true;
-                queryTable.PreserveFormatting = true;
-                queryTable.TextFileTextQualifier = XlTextQualifier.xlTextQualifierNone;
-                queryTable.Refresh();
-            }
-            catch (Exception ex)
-            {
-                throw new Exception(ex.Message, ex);
-            }
-
-            return workbook;
-        }
-
-        private static Workbook CreateExcelWorkbookFromTextFile2(Application excel, string filePath)
-        {
-            // Create a new workbook object
-            Workbook workbook = excel.Workbooks.Add();
-
-            // Add a new worksheet to the workbook object
-            Worksheet worksheet = workbook.Worksheets.Add();
-
-            // Create a connection string to the text file using Power Query
-            string connectionString = $"TEXT;{filePath}";
-
-            try
-            {
-                QueryTable queryTable = worksheet.QueryTables.Add(Connection: connectionString, Destination: worksheet.Cells[1, 1]);
-                //queryTable.TextFileParseType = XlTextParsingType.xlDelimited;
-                /*queryTable.HasAutoFormat = true;
-                queryTable.PreserveFormatting = true;*/
-                queryTable.HasAutoFormat = false;
-                queryTable.PreserveFormatting = false;
-                //queryTable.TextFileTextQualifier = XlTextQualifier.xlTextQualifierNone;
-                queryTable.Refresh();
-                
-                // Specify the column data types to treat columns containing numbers with zeros at the front as text
-                int numColumns = queryTable.ResultRange.Columns.Count;
-                for (int i = 1; i <= numColumns; i++)
-                {
-                    Range column = queryTable.ResultRange.Columns[i];
-                    for (int j = 1; j <= column.Cells.Count; j++)
-                        if (IsNumericWithLeadingZeros(column.Cells[j].Value))
-                        {
-                            column.NumberFormat = "@";
-                            queryTable.Refresh();
-                            break;
-                        }
-                }
-
-                queryTable.Refresh();
-            }
-            catch (Exception ex)
-            {
-                throw new Exception(ex.Message, ex);
-            }
-
-            return workbook;
-        }
-
-        // Helper function to check if a value is a numeric string with leading zeros
         private static bool IsNumericWithLeadingZeros(object value)
         {
             if (value == null || !(value is string))
-            {
                 return false;
-            }
 
             string strValue = (string)value;
             if (strValue.Length == 0)
-            {
                 return false;
-            }
 
             if (!char.IsDigit(strValue[0]) && strValue[0] != '-')
-            {
                 return false;
-            }
 
             if (strValue[0] == '0' && strValue.Length > 1)
-            {
                 return true;
-            }
 
             double result;
             return double.TryParse(strValue, out result);
         }
 
-        private static string[] LaunchFilePicker()
-        {
-            OpenFileDialog openFileDialog = new OpenFileDialog();
-            openFileDialog.Multiselect = true;
-            openFileDialog.Filter = "Excel Workbook (*.xlsx;*.xlsb;*.xlsm;*.xls;*.txt)|*.xlsx;*.xlsb;*.xlsm;*.xls;*.txt";
-            openFileDialog.Title = "Select Excel workbooks or text files to merge";
-            if (openFileDialog.ShowDialog() == DialogResult.OK)
-            {
-                return openFileDialog.FileNames;
-            }
-            else
-            {
-                return null;
-            }
-        }
 
-        public static string PromptForSaveLocation()
-        {
-            SaveFileDialog saveFileDialog = new SaveFileDialog();
-            saveFileDialog.Filter = "Excel Workbook (*.xlsx)|*.xlsx|Excel Binary Workbook (*.xlsb)|*.xlsb|Excel Macro-Enabled Workbook (*.xlsm)|*.xlsm|Excel 97-2003 Workbook (*.xls)|*.xls";
-            saveFileDialog.Title = "Save Merged Workbook";
-            saveFileDialog.ShowDialog();
-
-            if (saveFileDialog.FileName != "")
-            {
-                return saveFileDialog.FileName;
-            }
-            else
-            {
-                throw new Exception("No file selected.");
-            }
-        }
     }
 }
