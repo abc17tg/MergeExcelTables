@@ -37,13 +37,18 @@ namespace MergeExcelsTables
             // 
             // okBtn
             // 
+            this.okBtn.BackColor = System.Drawing.Color.MediumAquamarine;
             this.okBtn.Dock = System.Windows.Forms.DockStyle.Bottom;
+            this.okBtn.FlatAppearance.BorderColor = System.Drawing.Color.White;
+            this.okBtn.FlatAppearance.MouseDownBackColor = System.Drawing.Color.FromArgb(((int)(((byte)(192)))), ((int)(((byte)(255)))), ((int)(((byte)(192)))));
+            this.okBtn.FlatAppearance.MouseOverBackColor = System.Drawing.Color.FromArgb(((int)(((byte)(128)))), ((int)(((byte)(255)))), ((int)(((byte)(255)))));
+            this.okBtn.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.okBtn.Location = new System.Drawing.Point(0, 77);
             this.okBtn.Name = "okBtn";
             this.okBtn.Size = new System.Drawing.Size(230, 23);
             this.okBtn.TabIndex = 0;
             this.okBtn.Text = "OK";
-            this.okBtn.UseVisualStyleBackColor = true;
+            this.okBtn.UseVisualStyleBackColor = false;
             this.okBtn.Click += new System.EventHandler(this.okBtn_Click);
             // 
             // label
@@ -62,6 +67,7 @@ namespace MergeExcelsTables
             // 
             this.delimiterTextBox.AccessibleName = "delimiterTextBox";
             this.delimiterTextBox.AllowDrop = true;
+            this.delimiterTextBox.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.delimiterTextBox.Font = new System.Drawing.Font("Microsoft Sans Serif", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.delimiterTextBox.Location = new System.Drawing.Point(66, 50);
             this.delimiterTextBox.Name = "delimiterTextBox";
@@ -71,13 +77,16 @@ namespace MergeExcelsTables
             // 
             // DelimiterForm
             // 
-            this.BackColor = System.Drawing.Color.MediumSeaGreen;
+            this.BackColor = System.Drawing.Color.MintCream;
             this.ClientSize = new System.Drawing.Size(230, 100);
             this.Controls.Add(this.delimiterTextBox);
             this.Controls.Add(this.label);
             this.Controls.Add(this.okBtn);
             this.Font = new System.Drawing.Font("Calibri", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.MaximizeBox = false;
             this.Name = "DelimiterForm";
+            this.ShowIcon = false;
+            this.ShowInTaskbar = false;
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "Delimiter";
             this.TopMost = true;

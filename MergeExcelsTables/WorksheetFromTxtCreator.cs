@@ -2,21 +2,15 @@
 using System.IO;
 using System.Linq;
 using Excel = Microsoft.Office.Interop.Excel;
-using Application = Microsoft.Office.Interop.Excel.Application;
 using System.Data;
+using System.Collections.Generic;
 
 namespace MergeExcelsTables
 {
     public static class WorksheetFromTxtCreator
     {
-        public static Excel.Workbook CreateExcelWorkbookFromTextFileQueryTable(Application excel, string filePath, string delimiter = "\t")
+        public static Excel.Range CreateExcelWorkbookFromTextFileQueryTable(Excel.Worksheet worksheet, string filePath, string delimiter = "\t")
         {
-            // Create a new workbook object
-            Excel.Workbook workbook = excel.Workbooks.Add();
-
-            // Add a new worksheet to the workbook object
-            Excel.Worksheet worksheet = workbook.Worksheets.Add();
-
             // Create a connection string to the text file using Power Query
             string connectionString = $"TEXT;{filePath}";
 
@@ -34,120 +28,39 @@ namespace MergeExcelsTables
             {
                 throw new Exception(ex.Message, ex);
             }
-
-            return workbook;
+            return worksheet.UsedRange;
         }
 
-        public static Excel.Workbook CreateExcelWorkbookFromTextFile(Excel.Application excel, string filePath, string delimiter)
+        /*public static Excel.Range CreateExcelWorkbookFromTextFile(Excel.Worksheet worksheet, string filePath, string delimiter = "\t")
         {
-            // Create a new workbook object
-            Excel.Workbook workbook = excel.Workbooks.Add();
-
-            // Add a new worksheet to the workbook object
-            Excel.Worksheet worksheet = workbook.Worksheets.Add();
-
-            // Load the text file into a DataTable
-            DataTable dataTable = LoadTextFileToDataTable(filePath, delimiter);
-
-            // Write the contents of the DataTable to the Excel worksheet
-            DataTableToExcelWorksheet(dataTable, worksheet);
-
-            return workbook;
-        }
-
-        public static DataTable LoadTextFileToDataTable(string filePath, string delimiter)
-        {
-            DataTable dataTable = new DataTable();
-
-            using (StreamReader sr = new StreamReader(filePath))
+            if (!File.Exists(filePath))
             {
-                string[] headers = sr.ReadLine().Split(new string[] { delimiter }, StringSplitOptions.None);
-
-                foreach (string header in headers)
-                {
-                    dataTable.Columns.Add(header);
-                }
-
-                while (!sr.EndOfStream)
-                {
-                    string[] rows = sr.ReadLine().Split(new string[] { delimiter }, StringSplitOptions.None);
-                    DataRow newRow = dataTable.NewRow();
-
-                    for (int i = 0; i < rows.Length; i++)
-                    {
-                        newRow[i] = rows[i];
-                    }
-
-                    dataTable.Rows.Add(newRow);
-                }
+                throw new FileNotFoundException($"File not found at path: {filePath}");
             }
 
-            return dataTable;
-        }
-
-        
-        public static void DataTableToExcelWorksheet(DataTable dataTable, Excel.Worksheet worksheet)
-        {
-            // Write column headers
-            var headers = dataTable.Columns.Cast<DataColumn>()
-                .Select((c, i) => new { Column = c, Index = i + 1 })
-                .ToList();
-
-            var headerRange = worksheet.Range[worksheet.Cells[1, 1], worksheet.Cells[1, headers.Count]];
-            headerRange.Value2 = headers.Select(h => h.Column.ColumnName).ToArray();
-
-            // Write data rows
-            var data = dataTable.Rows.Cast<DataRow>()
-                .SelectMany(r => headers.Select(h => r[h.Index - 1]))
-                .ToArray();
-
-            var dataRange = worksheet.Range[worksheet.Cells[2, 1], worksheet.Cells[data.Length / headers.Count + 1, headers.Count]];
-            dataRange.Value = data;
-
-            // Set number format
-            dataRange.NumberFormat = "@";
-        }
-    }
-}
-
-
-/*private static void DataTableToExcelWorksheet(DataTable dataTable, Excel.Worksheet worksheet)
-        {
-            // Write column headers
-            for (int i = 0; i < dataTable.Columns.Count; i++)
+            using (StreamReader reader = new StreamReader(filePath))
             {
-                worksheet.Cells[1, i + 1].Value = dataTable.Columns[i].ColumnName;
-            }
+                List<List<string>> rows = new List<List<string>>();
 
-            // Write data rows
-            for (int i = 0; i < dataTable.Rows.Count; i++)
-            {
-                for (int j = 0; j < dataTable.Columns.Count; j++)
+                string line;
+
+                while ((line = reader.ReadLine()) != null)
                 {
-                    worksheet.Cells[i + 2, j + 1].NumberFormat = "@";
-                    worksheet.Cells[i + 2, j + 1].Value = dataTable.Rows[i][j];
+                    string[] values = line.Split(new string[] { delimiter }, StringSplitOptions.None);
+
+                    rows.Add(values.ToList());
                 }
+
+                int rowCount = rows.Count;
+                int columnCount = rows.Max(row => row.Count);
+
+                Excel.Range range = worksheet.Range[worksheet.Cells[1, 1], worksheet.Cells[rowCount, columnCount]];
+                range.Value2 = rows.Select(row => row.ToArray()).ToArray();
+                range.NumberFormat = "@";
+
+                return range;
             }
         }*/
-
-/* public static void DataTableToExcelWorksheet(DataTable dataTable, Excel.Worksheet worksheet)
-         {
-             // Write column headers
-             var headers = dataTable.Columns.Cast<DataColumn>()
-                 .Select((c, i) => new { Column = c, Index = i + 1 })
-                 .ToList();
-
-             var headerRange = worksheet.Range[worksheet.Cells[1, 1], worksheet.Cells[1, headers.Count]];
-             headerRange.Value2 = headers.Select(h => h.Column.ColumnName).ToArray();
-
-             // Write data rows
-             var data = dataTable.Rows.Cast<DataRow>()
-                 .Select(r => headers.Select(h => r[h.Index - 1]).ToArray())
-                 .ToList();
-
-             var dataRange = worksheet.Range[worksheet.Cells[2, 1], worksheet.Cells[data.Count + 1, headers.Count]];
-             dataRange.Value2 = Utils.ConvertTo2DArray2(data);
-
-             dataRange.NumberFormat = "@";
-         }*/
+    }
+}
 

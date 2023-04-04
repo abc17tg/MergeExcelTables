@@ -11,6 +11,9 @@ namespace MergeExcelsTables
         {
             InitializeComponent();
             FormClosed += (s, e) => { if (string.IsNullOrEmpty(Delimiter)) Delimiter = "\t"; };
+            Enabled = true;
+            Enter += okBtn_Click;
+            Shown += (s, e) => Activate();
         }
 
         private void okBtn_Click(object sender, EventArgs e)

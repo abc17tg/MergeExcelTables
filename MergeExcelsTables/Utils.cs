@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
+using Excel = Microsoft.Office.Interop.Excel;
 
 namespace MergeExcelsTables
 {
@@ -49,19 +50,31 @@ namespace MergeExcelsTables
             return ret;
         }
 
-        public static string[] LaunchFilePicker()
+        public static string LaunchFilePickerSingle()
+        {
+            OpenFileDialog openFileDialog = new OpenFileDialog();
+            openFileDialog.Multiselect = false;
+            openFileDialog.Filter = "Excel Workbook (*.xlsx;*.xlsb;*.xlsm;*.xls;*.txt;*.csv)|*.xlsx;*.xlsb;*.xlsm;*.xls;*.txt;*.csv";
+            openFileDialog.Title = "Select Excel workbook or text file as template and to merge";
+            if (openFileDialog.ShowDialog() != DialogResult.OK)
+                return null;
+
+            return openFileDialog.FileName;
+        }
+
+        public static List<string> LaunchFilePicker()
         {
             OpenFileDialog openFileDialog = new OpenFileDialog();
             openFileDialog.Multiselect = true;
             openFileDialog.Filter = "Excel Workbook (*.xlsx;*.xlsb;*.xlsm;*.xls;*.txt;*.csv)|*.xlsx;*.xlsb;*.xlsm;*.xls;*.txt;*.csv";
-            openFileDialog.Title = "Select Excel workbooks or text files to merge";
+            openFileDialog.Title = "Select rest of Excel workbooks and text files to merge (order will be random)";
             if (openFileDialog.ShowDialog() != DialogResult.OK)
                 return null;
 
-            var filePaths = openFileDialog.FileNames;
+            var filePaths = openFileDialog.FileNames.ToList();
             var tempFilePaths = filePaths.Where(p => ExcelExt.Contains(Path.GetExtension(p).ToLower())).ToList();
             tempFilePaths.AddRange(filePaths.Where(p => TextExt.Contains(Path.GetExtension(p).ToLower())).ToList());
-            filePaths = tempFilePaths.ToArray();
+            filePaths = tempFilePaths;
             return filePaths;
         }
 
@@ -83,5 +96,64 @@ namespace MergeExcelsTables
             return saveFileDialog.FileName;
         }
 
+        public static bool SaveAs(Excel.Workbook workbook)
+        {
+            try
+            {
+                string newFilePath = Utils.PromptForSaveLocation();
+                if (!string.IsNullOrEmpty(newFilePath))
+                {
+                    Excel.XlFileFormat fileFormat;
+                    string fileExtension = Path.GetExtension(newFilePath);
+
+                    switch (fileExtension)
+                    {
+                        case ".xlsx":
+                            fileFormat = Excel.XlFileFormat.xlOpenXMLWorkbook;
+                            break;
+                        case ".xlsm":
+                            fileFormat = Excel.XlFileFormat.xlOpenXMLWorkbookMacroEnabled;
+                            break;
+                        case ".xls":
+                            fileFormat = Excel.XlFileFormat.xlExcel8;
+                            break;
+                        case ".xlsb":
+                            fileFormat = Excel.XlFileFormat.xlExcel12;
+                            break;
+                        default:
+                            fileFormat = Excel.XlFileFormat.xlWorkbookDefault;
+                            break;
+                    }
+
+                    workbook.SaveAs(newFilePath, fileFormat, ReadOnlyRecommended: false);
+                    return true;
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("\n\n" + ex.ToString());
+                return false;
+            }
+        }
+
+        private static bool IsNumericWithLeadingZeros(object value)
+        {
+            if (value == null || !(value is string))
+                return false;
+
+            string strValue = (string)value;
+            if (strValue.Length == 0)
+                return false;
+
+            if (!char.IsDigit(strValue[0]) && strValue[0] != '-')
+                return false;
+
+            if (strValue[0] == '0' && strValue.Length > 1)
+                return true;
+
+            double result;
+            return double.TryParse(strValue, out result);
+        }
     }
 }
