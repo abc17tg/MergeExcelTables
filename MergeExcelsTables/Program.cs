@@ -22,9 +22,9 @@ namespace MergeExcelsTables
         static int Main(string[] args)
         {
             List<string> filePaths;
-            if (args.Length > 0 && (args.Last() == "false" || args.Last() == "true"))
+            if (args.Length > 0 && (args.Last().Trim().ToLower() == "false" || args.Last().Trim().ToLower() == "true"))
             {
-                if (args.Last() == "false" || args.Last() == "true")
+                if (args.Last().Trim().ToLower() == "false" || args.Last().Trim().ToLower() == "true")
                 {
                     m_showPrompts = bool.TryParse(args.Last(), out bool result);
                     if (!result)

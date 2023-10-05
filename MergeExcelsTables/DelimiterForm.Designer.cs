@@ -60,7 +60,7 @@ namespace MergeExcelsTables
             this.label.Name = "label";
             this.label.Size = new System.Drawing.Size(216, 36);
             this.label.TabIndex = 2;
-            this.label.Text = "Enter delimiter\n(or if tab you can leave it emptye)";
+            this.label.Text = "Enter delimiter\n(or if tab you can leave it empty)";
             this.label.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // delimiterTextBox
